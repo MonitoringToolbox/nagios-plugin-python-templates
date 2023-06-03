@@ -1,0 +1,68 @@
+name: Repository Linting
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      slack-notify:
+        description: 'Notify Slack'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  SLACK_NOTIFY: true
+
+permissions: read-all
+
+jobs:
+  action-lint:
+    name: Action Lint
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-action-lint.yml@master
+
+  awesomebot:
+    name: Awesomebot
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-awesomebot.yml@master
+
+  markdown-lint:
+    name: Markdown Lint
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-markdown-lint.yml@master
+
+  yaml-lint:
+    name: YAML Lint
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-yaml-lint.yml@master
+
+  set-slack-notify:
+    name: Set Slack Notify
+    runs-on: ubuntu-latest
+    outputs:
+      slack-notify: ${{ steps.set-slack-notify.outputs.slack-notify }}
+    steps:
+      - name: Set Slack Notify
+        id: set-slack-notify
+        run: |
+          echo "slack-notify=${{ github.event.inputs.slack-notify || env.SLACK_NOTIFY }}" >> "${GITHUB_OUTPUT}"
+
+  slack-workflow-status:
+    if: always()
+    name: Slack
+    needs:
+      - action-lint
+      - awesomebot
+      - markdown-lint
+      - yaml-lint
+      - set-slack-notify
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-slack.yml@master
+    with:
+      slack_notify: ${{ needs.set-slack-notify.outputs.slack-notify }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+      slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}

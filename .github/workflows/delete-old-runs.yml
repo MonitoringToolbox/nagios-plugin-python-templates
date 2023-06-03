@@ -1,0 +1,82 @@
+name: Delete old workflow runs
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Number of days.'
+        required: true
+        default: '30'
+      minimum-runs:
+        description: 'The minimum runs to keep for each workflow.'
+        required: true
+        default: '6'
+      slack-notify:
+        description: 'Notify Slack'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+  schedule:
+    - cron: '30 4 * * *'
+
+env:
+  SLACK_NOTIFY: false
+  DAYS: 30
+  MINIMUM_RUNS: 6
+
+permissions: read-all
+
+jobs:
+  set-output-defaults:
+    name: Set Output Defaults
+    runs-on: ubuntu-latest
+    outputs:
+      days: ${{ steps.set-output-defaults.outputs.days }}
+      minimum-runs: ${{ steps.set-output-defaults.outputs.minimum-runs }}
+    steps:
+      - name: set outputs with default values
+        id: set-output-defaults
+        run: |
+          echo "days=${{ github.event.inputs.days || env.DAYS }}" >> "${GITHUB_OUTPUT}"
+          echo "minimum-runs=${{ github.event.inputs.minimum-runs || env.MINIMUM_RUNS }}" >> "${GITHUB_OUTPUT}"
+
+  delete-old-workflows:
+    name: Delete old workflow runs (Local)
+    permissions:
+      actions: write
+    needs:
+      - set-output-defaults
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-delete-old-runs.yml@master
+    with:
+      days: ${{ needs.set-output-defaults.outputs.days }}
+      minimum-runs: ${{ needs.set-output-defaults.outputs.minimum-runs }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+
+  set-slack-notify:
+    name: Set Slack Notify
+    runs-on: ubuntu-latest
+    outputs:
+      slack-notify: ${{ steps.set-slack-notify.outputs.slack-notify }}
+    steps:
+      - name: Set Slack Notify
+        id: set-slack-notify
+        run: |
+          echo "slack-notify=${{ github.event.inputs.slack-notify || env.SLACK_NOTIFY }}" >> "${GITHUB_OUTPUT}"
+
+  slack-workflow-status:
+    if: always()
+    name: Slack (Local)
+    needs:
+      - delete-old-workflows
+      - set-slack-notify
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-slack.yml@master
+    with:
+      slack_notify: ${{ needs.set-slack-notify.outputs.slack-notify }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+      slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}

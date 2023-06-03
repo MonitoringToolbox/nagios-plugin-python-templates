@@ -1,0 +1,54 @@
+name: Greetings
+
+on:
+  pull_request_target:
+  issues:
+  workflow_dispatch:
+    inputs:
+      slack-notify:
+        description: 'Notify Slack'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  SLACK_NOTIFY: false
+
+permissions: read-all
+
+jobs:
+  greetings:
+    name: Greetings (Local)
+    permissions:
+      issues: write
+      pull-requests: write
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-greetings.yml@master
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+
+  set-slack-notify:
+    name: Set Slack Notify
+    runs-on: ubuntu-latest
+    outputs:
+      slack-notify: ${{ steps.set-slack-notify.outputs.slack-notify }}
+    steps:
+      - name: Set Slack Notify
+        id: set-slack-notify
+        run: |
+          echo "slack-notify=${{ github.event.inputs.slack-notify || env.SLACK_NOTIFY }}" >> "${GITHUB_OUTPUT}"
+
+  slack-workflow-status:
+    if: always()
+    name: Slack (Local)
+    needs:
+      - greetings
+      - set-slack-notify
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-slack.yml@master
+    with:
+      slack_notify: ${{ needs.set-slack-notify.outputs.slack-notify }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+      slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}

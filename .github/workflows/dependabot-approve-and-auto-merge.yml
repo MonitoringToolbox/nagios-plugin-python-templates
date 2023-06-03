@@ -1,0 +1,18 @@
+name: Dependabot pull request approve and merge
+on: pull_request_target
+
+permissions: read-all
+
+jobs:
+  dependabot:
+    name: Dependabot
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
+      repository-projects: write
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    uses: WolfSoftware/reusable-workflows/.github/workflows/reusable-dependabot-approve-and-auto-merge.yml@master
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,62 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+  workflow_dispatch:
+  schedule:
+    - cron: '27 5 * * 1'
+
+env:
+  SLACK_NOTIFY: true
+
+# Declare default permissions as read only.
+permissions: read-all
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python"]
+
+    steps:
+    - name: Checkout the repository
+      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@421a1b344fb0def373a0794a4051f19f207461ec # v2.2.1
+      with:
+        languages: ${{ matrix.language }}
+        queries: +security-and-quality
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@421a1b344fb0def373a0794a4051f19f207461ec # v2.2.1
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@421a1b344fb0def373a0794a4051f19f207461ec # v2.2.1
+
+  slack-workflow-status:
+    if: always() && ${{ github.actor != 'dependabot[bot]' }}
+    name: Slack Post Workflow Notification
+    needs:
+      - analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack Workflow Notifications
+        if: ${{ env.SLACK_NOTIFY == 'true' && github.event_name == 'push' }}
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309 # v1.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          include_jobs: on-failure
+          include_commit_message: true
