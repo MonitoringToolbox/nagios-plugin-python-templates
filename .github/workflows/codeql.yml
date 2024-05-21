@@ -1,0 +1,70 @@
+name: CodeQL
+
+on:
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.cff'
+
+  pull_request:
+    branches:
+      - '**'
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.cff'
+
+  schedule:
+    - cron: '12 2 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql-analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        languages: ['python']
+
+    steps:
+      - name: Checkout the Repository
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29  # v4.1.6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@a57c67b89589d2d13d5ac85a9fc4679c7539f94c  # v2.17.3
+        with:
+          languages: ${{ matrix.languages }}
+          queries: +security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@a57c67b89589d2d13d5ac85a9fc4679c7539f94c  # v2.17.3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@a57c67b89589d2d13d5ac85a9fc4679c7539f94c  # v2.17.3
+
+  slack-workflow-status:
+    if: always()
+    name: Slack Post Workflow Notification
+    needs:
+      - codeql-analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Slack Workflow Notifications
+        if: ${{ github.event_name == 'schedule' && needs.codeql-analyze.result != 'success' }}
+        uses: Gamesight/slack-workflow-status@68bf00d0dbdbcb206c278399aa1ef6c14f74347a  # v1.3.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          include_jobs: on-failure
+          include_commit_message: true
